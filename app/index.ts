@@ -97,6 +97,8 @@ async function installDevExtensions(isDev_: boolean) {
 // eslint-disable-next-line @typescript-eslint/no-misused-promises
 app.on('ready', () =>
   installDevExtensions(isDev)
+    // [nocturne] Extensions are a development convenience; a blocked download must not keep the window shut.
+    .catch((error: Error) => console.warn('Devtools extensions unavailable:', error.message))
     .then(() => {
       function createWindow(
         fn?: (win: BrowserWindow) => void,

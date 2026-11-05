@@ -52,7 +52,11 @@ anything unknown or out of range falls back to its default.
     "voice": "standard",
     "marginBell": true,
     "carriage": true,
-    "impression": 0.8
+    "impression": 0.8,
+    "classic": false,
+    "classicCps": 12,
+    "motor": true,
+    "paperFromBottom": true
   },
   "print": {
     "keepInArchive": true,
@@ -84,6 +88,10 @@ anything unknown or out of range falls back to its default.
 | `lighting.spread` / `aim` | beam angle 20–160°, swivel −45° to 45° |
 | `typography.font` | `courier-prime`, `ibm-plex-mono`, `jetbrains-mono-nf`, `fira-code-nf`, `hack-nf`, `meslo-nf`, `caskaydia-nf`, `custom`, … |
 | `typewriter.voice` | `standard`, `portable`, `electric`, `whisper` |
+| `typewriter.classic` | `true` prints program output one character at a time, at the machine's speed |
+| `typewriter.classicCps` | characters per second for `classic`, 1–60 (12 is a typewriter) |
+| `typewriter.motor` | `true` runs a teletype motor under `classic`: a hum and a fast gear flutter |
+| `typewriter.paperFromBottom` | `true` starts writing at the bottom of the sheet, at the type head, and feeds upwards |
 | `typography.selectionStyle` | `ink` (dissolving ink), `classic` (xterm's box) |
 | `print.style.paper` | `laid`, `cotton`, `vellum`, `parchment`, `night` |
 | `print.style.sealColor` | `crimson`, `oxblood`, `black`, `gold`, `emerald`, `sapphire` |

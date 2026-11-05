@@ -417,6 +417,12 @@ export function Studio({settings, drawing, onClose, onPress}: StudioProps) {
           onChange={(carriage) => updateSettings({typewriter: {carriage}})}
         />
         <Switch label="Sound" checked={typewriter.sound} onChange={(sound) => updateSettings({typewriter: {sound}})} />
+        <Switch
+          label="Motor"
+          checked={typewriter.motor}
+          onChange={(motor) => updateSettings({typewriter: {motor}})}
+          note="A teletype motor hums under the classic typewriter: a low hum and a fast gear flutter."
+        />
         <Slider
           label="Volume"
           value={typewriter.volume}
@@ -436,6 +442,27 @@ export function Studio({settings, drawing, onClose, onPress}: StudioProps) {
           label="Margin bell"
           checked={typewriter.marginBell}
           onChange={(marginBell) => updateSettings({typewriter: {marginBell}})}
+        />
+        <Switch
+          label="Classic typewriter"
+          checked={typewriter.classic}
+          onChange={(classic) => updateSettings({typewriter: {classic}})}
+          note="Program output is printed one character at a time too, and the type head strikes each letter as it lands. Full-screen programs (Vim, less) skip the queue; a keystroke always prints the backlog first."
+        />
+        <Slider
+          label="Type speed"
+          value={typewriter.classicCps}
+          min={3}
+          max={40}
+          step={1}
+          format={(value) => `${value}/s`}
+          onChange={(classicCps) => updateSettings({typewriter: {classicCps}})}
+        />
+        <Switch
+          label="Paper from the bottom"
+          checked={typewriter.paperFromBottom}
+          onChange={(paperFromBottom) => updateSettings({typewriter: {paperFromBottom}})}
+          note="The first line lands at the type head and the sheet feeds upwards, as a typewriter does."
         />
       </Section>
 

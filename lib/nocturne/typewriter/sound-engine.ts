@@ -21,7 +21,9 @@ export type SoundKind =
   | 'cord'
   | 'seal'
   | 'print'
-  | 'line';
+  | 'line'
+  | 'feed'
+  | 'motion';
 
 type Voice = {
   /** Frequency of the platen thump, Hz. */
@@ -59,7 +61,9 @@ const DURATION: Record<SoundKind, number> = {
   cord: 0.24,
   seal: 0.5,
   print: 0.9,
-  line: 0.16
+  line: 0.16,
+  feed: 0.34,
+  motion: 0.2
 };
 
 /** Relative loudness of each sound against a keystroke. */
@@ -77,7 +81,9 @@ const LOUDNESS: Record<SoundKind, number> = {
   cord: 0.9,
   seal: 1,
   print: 0.7,
-  line: 0.55
+  line: 0.55,
+  feed: 0.6,
+  motion: 0.5
 };
 
 /** Small deterministic PRNG (mulberry32) so variants are reproducible. */
@@ -97,6 +103,24 @@ function noise(context: BaseAudioContext, seconds: number, rand: () => number): 
   const data = buffer.getChannelData(0);
   for (let i = 0; i < data.length; i++) {
     data[i] = rand() * 2 - 1;
+  }
+  return buffer;
+}
+
+/** Noise with a fifty-millisecond crossfade at the seam, for a source that loops without a click. */
+function loopNoise(context: BaseAudioContext, seconds: number, rand: () => number): AudioBuffer {
+  const length = Math.ceil(seconds * context.sampleRate);
+  const fade = Math.max(1, Math.ceil(0.05 * context.sampleRate));
+  const raw = new Float32Array(length + fade);
+  for (let i = 0; i < raw.length; i++) {
+    raw[i] = rand() * 2 - 1;
+  }
+  const buffer = context.createBuffer(1, length, context.sampleRate);
+  const data = buffer.getChannelData(0);
+  data.set(raw.subarray(0, length));
+  for (let i = 0; i < fade; i++) {
+    const t = i / fade;
+    data[i] = raw[i] * t + raw[length + i] * (1 - t);
   }
   return buffer;
 }
@@ -283,6 +307,44 @@ function paperRoll(context: BaseAudioContext, out: AudioNode, rand: () => number
   burst(context, out, rand, band(3200, 0.8), {at: 0, peak: 0.12, decay: 0.75, attack: 0.08});
 }
 
+/** A line space: the platen ratchet turns a tooth and the paper slides on. */
+function lineSpace(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
+  for (let i = 0; i < 3; i++) {
+    burst(context, out, rand, band(2300 + rand() * 400, 4), {at: i * 0.02, peak: 0.3 - i * 0.05, decay: 0.007});
+  }
+  burst(context, out, rand, band(3200, 0.8), {at: 0, peak: 0.08, decay: 0.22, attack: 0.015});
+  thump(context, out, voice.body * 0.95, {at: 0.022, peak: voice.bodyGain * 0.45, decay: 0.05});
+}
+
+/** The mechanism moving on to the next tooth: carriage, linkage, spool, a breath of gears. */
+function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
+  // The carriage and the type-bar linkage sliding to the next column.
+  const sweep = context.createBufferSource();
+  sweep.buffer = noise(context, 0.16, rand);
+  const bandpass = context.createBiquadFilter();
+  bandpass.type = 'bandpass';
+  bandpass.Q.value = 1.4;
+  bandpass.frequency.setValueAtTime(1400 * (0.9 + rand() * 0.2), 0);
+  bandpass.frequency.exponentialRampToValueAtTime(520, 0.12);
+  sweep
+    .connect(bandpass)
+    .connect(envelope(context, {at: 0, peak: 0.26, decay: 0.13, attack: 0.004}))
+    .connect(out);
+  sweep.start(0);
+  // The teeth of the escapement stepping past.
+  for (let i = 0; i < 3; i++) {
+    burst(context, out, rand, band(3100 + rand() * 500, 6), {
+      at: 0.004 + i * 0.011,
+      peak: 0.15 - i * 0.03,
+      decay: 0.005
+    });
+  }
+  // The ribbon spool turning, faint and high.
+  burst(context, out, rand, band(4200, 3), {at: 0.01, peak: 0.045, decay: 0.06});
+  // The body taking the step.
+  thump(context, out, voice.body * 1.1, {at: 0.002, peak: voice.bodyGain * 0.22, decay: 0.03});
+}
+
 function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffer> {
   const context = new OfflineAudioContext(1, Math.ceil(DURATION[kind] * SAMPLE_RATE), SAMPLE_RATE);
   const rand = random(seed);
@@ -317,6 +379,10 @@ function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffe
     paperRoll(context, out, rand);
   } else if (kind === 'line') {
     strike(context, out, {...voice, bodyGain: voice.bodyGain * 0.6}, rand, 0.8);
+  } else if (kind === 'feed') {
+    lineSpace(context, out, voice, rand);
+  } else if (kind === 'motion') {
+    mechanism(context, out, voice, rand);
   } else {
     bell(context, out);
   }
@@ -354,6 +420,8 @@ export class TypewriterSounds {
   private preparing = new Map<TypewriterVoice, Promise<void>>();
   private settings: TypewriterSettings | null = null;
   private rand = random(Date.now());
+  /** The teletype motor, looped while classic mode prints. */
+  private motor: {gain: GainNode; nodes: (AudioBufferSourceNode | OscillatorNode)[]} | null = null;
 
   configure(settings: TypewriterSettings) {
     this.settings = settings;
@@ -361,7 +429,105 @@ export class TypewriterSounds {
       this.close();
       return;
     }
+    this.volumeMotor();
     void this.prepare(settings.voice);
+  }
+
+  private motorLevel() {
+    return Math.max(0.015, (this.settings?.volume ?? 0.4) * 0.07);
+  }
+
+  private volumeMotor() {
+    if (this.motor && this.context) {
+      this.motor.gain.gain.setTargetAtTime(this.motorLevel(), this.context.currentTime, 0.2);
+    }
+  }
+
+  /**
+   * The motor of a teletype: a low hum, a fast flutter of gears and a thin hiss, all looped. It
+   * runs under classic mode while the machine is printing; the one-shot sounds sit on top of it.
+   */
+  startMotor() {
+    if (this.motor) {
+      return;
+    }
+    const context = this.ensureContext();
+    const master = this.master;
+    if (!context || !master) {
+      return;
+    }
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    gain.connect(master);
+    const flutter = context.createOscillator();
+    flutter.type = 'square';
+    flutter.frequency.value = 42;
+    const flutterDepth = context.createGain();
+    flutterDepth.gain.value = 0.38;
+    const flutterGain = context.createGain();
+    flutterGain.gain.value = 0.55;
+    flutter.connect(flutterDepth).connect(flutterGain.gain);
+    const whirr = context.createBufferSource();
+    whirr.buffer = loopNoise(context, 6, random(90210));
+    whirr.loop = true;
+    const whirrBand = context.createBiquadFilter();
+    whirrBand.type = 'bandpass';
+    whirrBand.frequency.value = 470;
+    whirrBand.Q.value = 1.1;
+    whirr.connect(whirrBand).connect(flutterGain).connect(gain);
+    const hum = context.createOscillator();
+    hum.type = 'sine';
+    hum.frequency.value = 51;
+    const humGain = context.createGain();
+    humGain.gain.value = 0.16;
+    hum.connect(humGain).connect(gain);
+    const hiss = context.createBufferSource();
+    hiss.buffer = loopNoise(context, 5, random(1234));
+    hiss.loop = true;
+    const hissFilter = context.createBiquadFilter();
+    hissFilter.type = 'highpass';
+    hissFilter.frequency.value = 2400;
+    const hissGain = context.createGain();
+    hissGain.gain.value = 0.02;
+    hiss.connect(hissFilter).connect(hissGain).connect(gain);
+    whirr.start();
+    hum.start();
+    flutter.start();
+    hiss.start();
+    gain.gain.setTargetAtTime(this.motorLevel(), context.currentTime, 0.5);
+    this.motor = {gain, nodes: [whirr, hum, flutter, hiss]};
+  }
+
+  stopMotor() {
+    const motor = this.motor;
+    const context = this.context;
+    this.motor = null;
+    if (!motor) {
+      return;
+    }
+    if (context) {
+      motor.gain.gain.setTargetAtTime(0, context.currentTime, 0.2);
+    }
+    const {nodes, gain} = motor;
+    setTimeout(() => {
+      for (const node of nodes) {
+        try {
+          node.stop();
+        } catch {
+          // already stopped
+        }
+        try {
+          node.disconnect();
+        } catch {
+          // already disconnected
+        }
+      }
+      try {
+        gain.disconnect();
+      } catch {
+        // already disconnected
+      }
+    }, 900);
   }
 
   /** Renders every sound of a voice in the background. */
@@ -439,6 +605,7 @@ export class TypewriterSounds {
 
   /** Releases the audio device. Buffers are kept so re-enabling is instant. */
   close() {
+    this.stopMotor();
     if (this.context) {
       void this.context.close();
     }

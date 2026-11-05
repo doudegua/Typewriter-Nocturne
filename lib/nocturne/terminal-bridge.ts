@@ -10,8 +10,10 @@ import type {IBufferCell, IDisposable, IMarker, Terminal} from 'xterm';
 import {extraTerminalOptions} from '../../app/nocturne/apply-config';
 
 import {emit, on} from './bus';
-import type {SelectedCell} from './bus';
+import type {CursorFrame, SelectedCell} from './bus';
 import {getSettings, subscribe} from './store';
+import {vanishedCells} from './typewriter/ghosts';
+import type {GhostCell} from './typewriter/ghosts';
 
 let activeUid: string | null = null;
 const terminals = new Map<string, Terminal>();
@@ -57,6 +59,63 @@ export function attachTerminal(uid: string, term: Terminal): IDisposable {
   let cursorShown = true;
   /** The last frame published, so an unchanged cursor is not announced again on every render. */
   let published = '';
+  /** Classic mode: the last read of the cursor row, absolute line → cells. */
+  let ghostRows = new Map<number, GhostCell[]>();
+  /** When the last erasing key was struck; only then can a vanished glyph be called deleted. */
+  let erasedAt = 0;
+
+  /**
+   * Classic typewriter mode remembers the cursor row between renders. When a character that was
+   * printed there is gone (a backspace, a redraw), its ink has already soaked into the paper, so
+   * the cell is published as a ghost instead of simply vanishing.
+   */
+  const trackGhosts = (buffer: typeof term.buffer.active, cellWidth: number) => {
+    if (!getSettings().typewriter.classic || buffer.type !== 'normal') {
+      if (ghostRows.size > 0) {
+        ghostRows = new Map();
+      }
+      return;
+    }
+    const lineIndex = buffer.baseY + buffer.cursorY;
+    const line = buffer.getLine(lineIndex);
+    if (!line) {
+      return;
+    }
+    const cells: GhostCell[] = [];
+    for (let i = 0; i < term.cols; i++) {
+      const cell = line.getCell(i);
+      cells.push({
+        char: cell?.getChars() || ' ',
+        width: Math.max(1, cell?.getWidth() ?? 1),
+        fg: cell ? foregroundOf(cell) : null,
+        bold: !!cell && cell.isBold() !== 0
+      });
+    }
+    const erasing = Date.now() - erasedAt < 900;
+    const before = ghostRows.get(lineIndex);
+    if (before && erasing) {
+      for (const col of vanishedCells(before, cells)) {
+        const old = before[col];
+        emit('ghost', {
+          uid,
+          char: old.char,
+          col,
+          line: lineIndex,
+          cellWidth,
+          width: old.width,
+          fg: old.fg,
+          bold: old.bold
+        });
+      }
+    }
+    ghostRows.set(lineIndex, cells);
+    if (ghostRows.size > 120) {
+      const oldest = ghostRows.keys().next();
+      if (!oldest.done) {
+        ghostRows.delete(oldest.value);
+      }
+    }
+  };
 
   const measure = () => {
     frameRequest = 0;
@@ -99,6 +158,9 @@ export function attachTerminal(uid: string, term: Terminal): IDisposable {
       grid: {left: rect.left, top: rect.top, width: rect.width, height: rect.height}
     };
 
+    anchorPaper(term, frame);
+    trackGhosts(buffer, cellWidth);
+
     // Only re-show characters the terminal itself has drawn: hidden input (passwords) never
     // appears in the buffer, so it can never appear in an effect either.
     const now = Date.now();
@@ -112,16 +174,20 @@ export function attachTerminal(uid: string, term: Terminal): IDisposable {
         if (!cell || cell.getChars() !== item.chars[0]) {
           break;
         }
-        emit('strike', {
-          uid,
-          char: item.chars[0],
-          col: item.col,
-          line: buffer.baseY + item.row,
-          cellWidth,
-          width: cellWidth * Math.max(1, cell.getWidth()),
-          fg: foregroundOf(cell),
-          bold: cell.isBold() !== 0
-        });
+        // In classic mode the character is struck when the machine prints it (the pacer's
+        // `print` event), not when it echoes: the two would double the impression.
+        if (!getSettings().typewriter.classic) {
+          emit('strike', {
+            uid,
+            char: item.chars[0],
+            col: item.col,
+            line: buffer.baseY + item.row,
+            cellWidth,
+            width: cellWidth * Math.max(1, cell.getWidth()),
+            fg: foregroundOf(cell),
+            bold: cell.isBold() !== 0
+          });
+        }
         item.col += Math.max(1, cell.getWidth());
         item.chars.shift();
       }
@@ -168,12 +234,21 @@ export function attachTerminal(uid: string, term: Terminal): IDisposable {
   };
   listen(term.parser.registerCsiHandler({prefix: '?', final: 'h'}, cursorMode(true)));
   listen(term.parser.registerCsiHandler({prefix: '?', final: 'l'}, cursorMode(false)));
-  listen(term.onResize(schedule));
+  listen(
+    term.onResize(() => {
+      ghostRows = new Map();
+      schedule();
+    })
+  );
   listen(term.onScroll(schedule));
   listen(term.buffer.onBufferChange(schedule));
   listen(
     term.onKey(({key, domEvent}) => {
       lastTypedAt = Date.now();
+      const ctrl = domEvent.ctrlKey && !domEvent.metaKey && !domEvent.altKey;
+      if (domEvent.key === 'Backspace' || domEvent.key === 'Delete' || (ctrl && /^[uwk]$/i.test(domEvent.key))) {
+        erasedAt = Date.now();
+      }
       if (!domEvent.isComposing && PRINTABLE.test(key)) {
         const buffer = term.buffer.active;
         expected.push({chars: [key], col: buffer.cursorX, row: buffer.cursorY, at: lastTypedAt});
@@ -307,6 +382,31 @@ export function attachTerminal(uid: string, term: Terminal): IDisposable {
       }
     }
   };
+}
+
+/**
+ * Classic mode writes from the bottom of the sheet. xterm.js always draws its rows from the top of
+ * its element, so the whole grid is shifted down by the empty rows above the cursor: the first line
+ * lands at the type head, and as lines are added the grid slides up a row at a time, like paper
+ * feeding through the platen. Only visual: the buffer, rows and input are untouched.
+ */
+function anchorPaper(term: Terminal, frame: CursorFrame) {
+  const element = term.element;
+  if (!element) {
+    return;
+  }
+  const {classic, paperFromBottom} = getSettings().typewriter;
+  if (!classic || !paperFromBottom || frame.alternate || frame.viewportY !== frame.baseY) {
+    if (element.style.transform) {
+      element.style.transform = '';
+    }
+    return;
+  }
+  const offset = Math.max(0, (frame.rows - 1 - frame.row) * frame.height);
+  const next = offset > 0 ? `translateY(${Math.round(offset)}px)` : '';
+  if (element.style.transform !== next) {
+    element.style.transform = next;
+  }
 }
 
 /** Marks a terminal as the one whose cursor drives the carriage and lighting. */

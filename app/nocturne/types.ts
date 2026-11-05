@@ -207,6 +207,14 @@ export type TypewriterSettings = {
   paperShake: number;
   /** Strength of the fresh-ink impression where a typed character lands, 0–1. */
   impression: number;
+  /** Classic typewriter: program output is struck one character at a time as well. */
+  classic: boolean;
+  /** Characters per second the machine prints at when `classic` is on. */
+  classicCps: number;
+  /** A teletype motor runs under classic mode: a hum and a fast gear flutter. */
+  motor: boolean;
+  /** Classic mode writes from the bottom of the sheet (at the type head) upwards, as paper feeds. */
+  paperFromBottom: boolean;
 };
 
 export type PaperSettings = {

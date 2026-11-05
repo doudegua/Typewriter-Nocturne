@@ -84,6 +84,12 @@ type EventMap = {
   cursor: CursorFrame;
   /** A typed character was echoed by the program at this cell (never fired for hidden input). */
   strike: StrikeEvent;
+  /** Classic typewriter mode printed a character of program output at this cell. */
+  print: StrikeEvent;
+  /** A printed character disappeared from the paper; the ink stayed behind (classic mode). */
+  ghost: StrikeEvent;
+  /** Printed output fed the paper by one line (classic mode). */
+  feed: {uid: string};
   /** The user pressed a key in a terminal (passive observation). */
   key: {kind: KeyKind; repeat: boolean};
   /** The cursor crossed the right-margin bell column while typing. */
@@ -99,6 +105,9 @@ type Handler<K extends keyof EventMap> = (payload: EventMap[K]) => void;
 const handlers: {[K in keyof EventMap]: Set<Handler<K>>} = {
   cursor: new Set(),
   strike: new Set(),
+  print: new Set(),
+  ghost: new Set(),
+  feed: new Set(),
   key: new Set(),
   marginBell: new Set(),
   cue: new Set(),

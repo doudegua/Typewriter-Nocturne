@@ -53,6 +53,9 @@ export type InkViewport = {
 
 type Strike = StrikeEvent & {at: number};
 
+/** Ink that stayed on the paper after its character was taken away (classic mode). */
+type Ghost = StrikeEvent & {at: number};
+
 /** The colour xterm.js gives a cell: default ink, one of the 16 ANSI colours, or a true colour. */
 export function glyphColor(fg: StrikeEvent['fg'], style: InkStyle): string {
   if (typeof fg === 'string') {
@@ -84,6 +87,7 @@ const smooth = (t: number) => {
 export class InkLayer {
   private context: CanvasRenderingContext2D | null;
   private strikes: Strike[] = [];
+  private ghosts: Ghost[] = [];
   private width = 0;
   private height = 0;
   private pixelRatio = 1;
@@ -103,15 +107,32 @@ export class InkLayer {
   }
 
   add(strike: StrikeEvent, now: number) {
+    // Fresh ink covers whatever stain was on the cell.
+    this.ghosts = this.ghosts.filter((ghost) => ghost.line !== strike.line || ghost.col !== strike.col);
     this.strikes.push({...strike, at: now});
     if (this.strikes.length > 64) {
       this.strikes.shift();
     }
   }
 
+  /**
+   * A character the machine had printed is gone (a backspace, a redraw). On paper the ink does not
+   * come off, so the cell keeps a faint stain where the letter was.
+   */
+  addGhost(strike: StrikeEvent) {
+    this.ghosts = this.ghosts.filter(
+      (ghost) => ghost.line !== strike.line || ghost.col !== strike.col || ghost.char !== strike.char
+    );
+    this.ghosts.push({...strike, at: performance.now()});
+    if (this.ghosts.length > 800) {
+      this.ghosts.shift();
+    }
+  }
+
   /** Forget every strike (the terminal changed, or the effect was turned off). */
   reset() {
     this.strikes = [];
+    this.ghosts = [];
     if (this.drawn) {
       this.context?.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.drawn = false;
@@ -122,20 +143,41 @@ export class InkLayer {
     return this.strikes.length > 0;
   }
 
-  /** Draws the strikes that are still settling; returns whether any remain. */
+  /** Draws the stains and the strikes that are still settling; returns whether any remain. */
   render(now: number, style: InkStyle, viewport: InkViewport | null) {
     const c = this.context;
     this.strikes = this.strikes.filter((strike) => now - strike.at < SETTLE_MS);
-    if (!c || (!this.drawn && this.strikes.length === 0)) {
+    if (!c || (!this.drawn && this.strikes.length === 0 && this.ghosts.length === 0)) {
       return this.strikes.length > 0;
     }
     c.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     c.clearRect(0, 0, this.width, this.height);
     this.drawn = false;
-    if (!viewport || style.impression <= 0) {
+    if (!viewport) {
       return this.strikes.length > 0;
     }
     c.textBaseline = 'ideographic';
+    // Old stains first: they sit in the paper, under anything freshly struck.
+    if (this.ghosts.length > 0) {
+      this.ghosts = this.ghosts.filter((ghost) => ghost.line >= viewport.viewportY - 1);
+      const raw = style.impression > 0 ? 0.14 : 0.09;
+      for (const ghost of this.ghosts) {
+        const top = viewport.top + (ghost.line - viewport.viewportY) * viewport.cellHeight;
+        if (top < -viewport.cellHeight || top > this.height) {
+          continue;
+        }
+        const {charHeight, charTop} = glyphMetrics(c, style, ghost.bold, viewport);
+        const x = viewport.left + ghost.col * ghost.cellWidth + Math.floor(style.letterSpacing / 2);
+        c.globalAlpha = raw;
+        c.fillStyle = glyphColor(ghost.fg, style);
+        c.fillText(ghost.char, x, top + charTop + charHeight + 0.4);
+        this.drawn = true;
+      }
+      c.globalAlpha = 1;
+    }
+    if (style.impression <= 0) {
+      return this.strikes.length > 0;
+    }
     for (const strike of this.strikes) {
       const k = (1 - smooth((now - strike.at) / SETTLE_MS)) * style.impression;
       const {charHeight, charTop} = glyphMetrics(c, style, strike.bold, viewport);

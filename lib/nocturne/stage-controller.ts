@@ -104,6 +104,7 @@ export class StageController {
   private slowFrames = 0;
 
   private frameRequest = 0;
+  private disposed = false;
   private lastTime = 0;
   private lastAmbient = 0;
   private lastHeavy = 0;
@@ -138,16 +139,23 @@ export class StageController {
     this.ink = new InkLayer(elements.ink);
     this.selection = new SelectionLayer(elements.selection);
     this.sounds.configure(settings.typewriter);
+    this.syncMotor();
 
     this.disposers.push(
       on('cursor', (frame) => this.onCursor(frame)),
       on('strike', (strike) => this.onStrike(strike)),
+      on('print', (strike) => this.onPrint(strike)),
+      on('ghost', (strike) => this.onGhost(strike)),
+      on('feed', () => this.onFeed()),
       on('key', ({kind, repeat}) => this.onKey(kind, repeat)),
       on('marginBell', () => this.onMarginBell()),
       on('cue', ({kind}) => this.onCue(kind)),
       on('selection', ({uid, cells}) => this.onSelection(uid, cells))
     );
-    const wake = () => this.invalidate();
+    const wake = () => {
+      this.syncMotor();
+      this.invalidate();
+    };
     document.addEventListener('visibilitychange', wake);
     this.reduceMotion.addEventListener('change', wake);
     this.disposers.push(() => {
@@ -164,6 +172,7 @@ export class StageController {
     if (previous.typewriter !== settings.typewriter) {
       this.sounds.configure(settings.typewriter);
     }
+    this.syncMotor();
     this.elements.stage.dataset.render = this.renderLabel();
     this.measureOrigin();
     this.refreshGrid();
@@ -203,6 +212,78 @@ export class StageController {
     this.schedule();
   }
 
+  /** The teletype motor runs only while classic mode is on, the sound is on and the window is visible. */
+  private syncMotor() {
+    const {sound, motor, classic} = this.settings.typewriter;
+    if (sound && motor && classic && !document.hidden) {
+      this.sounds.startMotor();
+    } else {
+      this.sounds.stopMotor();
+    }
+  }
+
+  /**
+   * Classic typewriter mode: the machine printed a character of program output. The type bar falls
+   * now — this is the strike the keyboard only announces — and the ink lands where xterm drew it.
+   */
+  private onPrint(strike: StrikeEvent) {
+    if (!this.theme() || !this.settings.typewriter.classic) {
+      return;
+    }
+    if (this.cursor && strike.uid !== this.cursor.uid) {
+      return;
+    }
+    const space = strike.char === ' ';
+    this.play(space ? 'space' : 'key');
+    this.throwTypeBar(space ? 0.82 : 1);
+    // Just after the bar falls, the carriage steps to the next tooth: the linkage slides, the
+    // escapement ticks past, the spool turns. This is the "shh" under the clack.
+    const weight = space ? 0.35 : 0.55;
+    setTimeout(() => {
+      if (!this.disposed) {
+        this.play('motion', false, weight);
+      }
+    }, 12);
+    const off = !paperEffectsOn(this.settings) || this.reduceMotion.matches || this.settings.typewriter.impression <= 0;
+    if (!off) {
+      this.ink.add(strike, performance.now());
+    }
+    this.schedule();
+  }
+
+  /** A printed character vanished from the paper; the ink it left behind stays. */
+  private onGhost(strike: StrikeEvent) {
+    if (!this.theme() || !this.settings.typewriter.classic) {
+      return;
+    }
+    if (this.cursor && strike.uid !== this.cursor.uid) {
+      return;
+    }
+    if (!paperEffectsOn(this.settings) || this.reduceMotion.matches) {
+      return;
+    }
+    if (this.settings.typewriter.impression <= 0) {
+      return;
+    }
+    this.ink.addGhost(strike);
+    this.schedule();
+  }
+
+  /** Printed output fed the paper by a line: the platen ratchet turns under the sound of it. */
+  private onFeed() {
+    if (!this.theme() || !this.settings.typewriter.classic) {
+      return;
+    }
+    if (this.settings.typewriter.returnSound) {
+      this.play('feed');
+    }
+    this.platenTarget += LINE_FEED_DEGREES;
+    if (!this.moves()) {
+      this.platen = {position: this.platenTarget, velocity: 0};
+    }
+    this.schedule();
+  }
+
   /** Stereo position of the type head, −0.7 (left) to 0.7 (right). */
   private pan() {
     const width = this.layout?.width ?? 0;
@@ -227,8 +308,16 @@ export class StageController {
     const stage = this.elements.stage;
     stage.dataset.keys = String(Number(stage.dataset.keys ?? 0) + 1);
     const {typewriter} = this.settings;
+    // Classic mode: the key lowers the lever, the type bar falls when the character is printed.
+    // In a full-screen program nothing is printed through the pacer, so keys strike as usual.
+    const classic = typewriter.classic && !!this.cursor && !this.cursor.alternate;
     switch (kind) {
       case 'return':
+        if (classic) {
+          // The carriage return is part of printing: the feed of the printed newline rings it.
+          this.play('select', repeat, 0.4);
+          break;
+        }
         if (typewriter.returnSound) {
           this.play('return', repeat);
         }
@@ -255,15 +344,27 @@ export class StageController {
         this.vibrator = {position: this.vibrator.position, velocity: 6 * VIBRATOR_LIFT};
         break;
       case 'commit':
+        if (classic) {
+          this.play('select', repeat, 0.6);
+          break;
+        }
         this.play('commit');
         this.throwTypeBar(1.35);
         break;
       case 'compose':
         // A keystroke inside an input method: the key is struck while the text is still preedit.
+        if (classic) {
+          this.play('select', repeat, 0.5);
+          break;
+        }
         this.play('key', repeat, 0.85);
         this.throwTypeBar(0.8);
         break;
       default:
+        if (classic) {
+          this.play('select', repeat, 0.55);
+          break;
+        }
         this.play(kind === 'space' ? 'space' : 'key', repeat);
         this.throwTypeBar(1);
     }
@@ -750,6 +851,8 @@ export class StageController {
   }
 
   dispose() {
+    this.disposed = true;
+    this.sounds.stopMotor();
     clearTimeout(this.rebuildTimer);
     if (this.frameRequest) {
       cancelAnimationFrame(this.frameRequest);

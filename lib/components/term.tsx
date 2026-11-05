@@ -18,6 +18,7 @@ import {WebglAddon} from 'xterm-addon-webgl';
 
 import type {TermProps} from '../../typings/hyper';
 import {attachTerminal} from '../nocturne/terminal-bridge';
+import {disposePacer} from '../nocturne/typewriter/pacing';
 import terms from '../terms';
 import processClipboard from '../utils/paste';
 import {decorate} from '../utils/plugins';
@@ -498,6 +499,8 @@ export default class Term extends React.PureComponent<
   };
 
   componentWillUnmount() {
+    // [nocturne] Drop the classic-typewriter queue of a terminal that is going away.
+    disposePacer(this.term);
     terms[this.props.uid] = null;
     this.termWrapperRef?.removeChild(this.termRef!);
     this.props.ref_(this.props.uid, null);

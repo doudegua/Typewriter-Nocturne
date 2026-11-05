@@ -51,7 +51,11 @@
     "voice": "standard",
     "marginBell": true,
     "carriage": true,
-    "impression": 0.8
+    "impression": 0.8,
+    "classic": false,
+    "classicCps": 12,
+    "motor": true,
+    "paperFromBottom": true
   },
   "print": {
     "keepInArchive": true,
@@ -83,6 +87,10 @@
 | `lighting.spread` / `aim` | 光束角度 20–160°，朝向 −45° 到 45° |
 | `typography.font` | `courier-prime`、`ibm-plex-mono`、`jetbrains-mono-nf`、`fira-code-nf`、`hack-nf`、`meslo-nf`、`caskaydia-nf`、`custom` 等 |
 | `typewriter.voice` | `standard`、`portable`、`electric`、`whisper` |
+| `typewriter.classic` | `true` 时程序输出也一个字一个字打出来，按机器的速度 |
+| `typewriter.classicCps` | `classic` 的每秒字数，1–60（12 就是打字机的速度） |
+| `typewriter.motor` | `true` 时 `classic` 底下跑一台电传打字机马达：低频嗡鸣 + 快速齿轮颤音 |
+| `typewriter.paperFromBottom` | `true` 时从纸的底部（字头处）开始写，纸往上走 |
 | `typography.selectionStyle` | `ink`（墨水消散）、`classic`（xterm 方框） |
 | `print.style.paper` | `laid`、`cotton`、`vellum`、`parchment`、`night` |
 | `print.style.sealColor` | `crimson`、`oxblood`、`black`、`gold`、`emerald`、`sapphire` |

@@ -1,0 +1,38 @@
+# A quiet login for the classic typewriter.
+#
+# No framework, no prompt theme, no completion menu. One short prompt line means the type head
+# has one line to strike and nothing to redraw: the machine, not a dashboard.
+#
+# Use it by pointing a Hyper/Nocturne profile at this directory:
+#
+#   "profiles": [
+#     {"name": "default", "config": {}},
+#     {"name": "classic", "config": {
+#       "shell": "/bin/zsh",
+#       "shellArgs": ["-i"],
+#       "env": {"ZDOTDIR": "/path/to/this/directory"}
+#     }}
+#   ]
+#
+# Keep the login environment small but usable: Finder-launched apps get a minimal PATH.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$PATH"
+
+HISTFILE=${HISTFILE:-$HOME/.zsh_history}
+HISTSIZE=5000
+SAVEHIST=5000
+setopt HIST_IGNORE_DUPS HIST_IGNORE_SPACE SHARE_HISTORY
+setopt AUTO_CD
+unsetopt BEEP
+
+bindkey -e
+
+# `%~` is the working directory with ~ for home. Nothing else.
+PROMPT='%~ $ '
+RPROMPT=''
+
+# Keep PROMPT_SP (it keeps a partial line, like the output of `printf abc`) but print no marker
+# glyph for it: on a typewriter that '%' is a real character the head would strike. The spaces and
+# carriage return that remain are written in one go by the pacer, so the head never visits the
+# right margin on the way.
+setopt PROMPT_SP PROMPT_CR
+PROMPT_EOL_MARK=''

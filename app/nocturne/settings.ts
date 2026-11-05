@@ -277,7 +277,11 @@ export function defaultSettings(): NocturneSettings {
       scale: true,
       paperFeed: 1.5,
       paperShake: 0,
-      impression: 0.8
+      impression: 0.8,
+      classic: false,
+      classicCps: 12,
+      motor: true,
+      paperFromBottom: true
     },
     print: {keepInArchive: true, style: defaultFolioStyle()},
     focus: {background: 'paper', color: '#1c1916', paper: true, lighting: false},
@@ -500,7 +504,11 @@ function sanitizeTypewriter(raw: unknown, base: TypewriterSettings): TypewriterS
     scale: bool(value.scale, base.scale),
     paperFeed: round(num(value.paperFeed, base.paperFeed, 0, 6), 1),
     paperShake: round(num(value.paperShake, base.paperShake, 0, 1)),
-    impression: round(num(value.impression, base.impression, 0, 1))
+    impression: round(num(value.impression, base.impression, 0, 1)),
+    classic: bool(value.classic, base.classic),
+    classicCps: num(value.classicCps, base.classicCps, 1, 60, 1),
+    motor: bool(value.motor, base.motor),
+    paperFromBottom: bool(value.paperFromBottom, base.paperFromBottom)
   };
 }
 
