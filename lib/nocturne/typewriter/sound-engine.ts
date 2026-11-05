@@ -244,6 +244,40 @@ function carriageReturn(context: BaseAudioContext, out: AudioNode, voice: Voice,
   burst(context, out, rand, {type: 'highpass', frequency: 1500}, {at: 0.46, peak: 0.5, decay: 0.02});
 }
 
+/** A short grain of filtered noise: a movement that starts and stops, not a smooth wash. */
+function grain(
+  context: BaseAudioContext,
+  out: AudioNode,
+  rand: () => number,
+  at: number,
+  duration: number,
+  center: number,
+  peak: number,
+  q = 3
+) {
+  const source = context.createBufferSource();
+  source.buffer = noise(context, duration, rand);
+  const filter = context.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = center;
+  filter.Q.value = q;
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0, at);
+  gain.gain.linearRampToValueAtTime(peak, at + 0.0015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+  source.connect(filter).connect(gain).connect(out);
+  source.start(at);
+}
+
+/** A short struck resonance: the ring of a part after it is hit. */
+function ping(context: BaseAudioContext, out: AudioNode, frequency: number, at: number, peak: number, decay: number) {
+  const oscillator = context.createOscillator();
+  oscillator.frequency.value = frequency;
+  oscillator.connect(envelope(context, {at, peak, decay, attack: 0.002})).connect(out);
+  oscillator.start(at);
+  oscillator.stop(at + decay + 0.05);
+}
+
 function bell(context: BaseAudioContext, out: AudioNode) {
   // A small struck bell: fundamental, octave-ish partial and an inharmonic shimmer.
   const partials: [number, number, number][] = [
@@ -343,95 +377,62 @@ function hammer(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: (
 }
 
 /**
- * The die plate of a type matrix: after a character it returns to the rest position, then seeks the
- * next die in two axes and locks under the hammer. Two movements and two detents, not one sweep.
+ * The die plate of a type matrix: after a character it returns to the rest position (which moves
+ * right with the carriage), then seeks the next die in two axes and locks under the hammer. Two
+ * movements, several detents: the plate is heavy steel, not a hiss.
  */
 function matrixMove(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
-  // Back to the rest position, to the right.
-  const back = context.createBufferSource();
-  back.buffer = noise(context, 0.16, rand);
-  const backBand = context.createBiquadFilter();
-  backBand.type = 'bandpass';
-  backBand.Q.value = 1.3;
-  backBand.frequency.setValueAtTime(1700, 0);
-  backBand.frequency.exponentialRampToValueAtTime(880, 0.11);
-  const backGain = context.createGain();
-  backGain.gain.setValueAtTime(0, 0);
-  backGain.gain.linearRampToValueAtTime(0.3, 0.012);
-  backGain.gain.exponentialRampToValueAtTime(0.0001, 0.13);
-  back.connect(backBand).connect(backGain).connect(out);
-  back.start(0);
-  burst(context, out, rand, band(2700, 6), {at: 0.115, peak: 0.2, decay: 0.006});
+  // Back to rest: two ratchet teeth, the second harder as the plate lands.
+  burst(context, out, rand, band(2600, 7), {at: 0.004, peak: 0.2, decay: 0.005});
+  grain(context, out, rand, 0.008, 0.034, 1500, 0.12, 1.9);
+  burst(context, out, rand, band(2400, 7), {at: 0.062 + rand() * 0.006, peak: 0.26, decay: 0.006});
+  grain(context, out, rand, 0.066, 0.038, 900, 0.14, 1.8);
+  ping(context, out, 720 * (0.95 + rand() * 0.1), 0.07, 0.05, 0.05);
+  thump(context, out, voice.body * 1.1, {at: 0.068, peak: voice.bodyGain * 0.2, decay: 0.035});
 
-  // Seek the next die: one axis slides, the other ticks.
-  const seek = context.createBufferSource();
-  seek.buffer = noise(context, 0.2, rand);
-  const seekBand = context.createBiquadFilter();
-  seekBand.type = 'bandpass';
-  seekBand.Q.value = 1.2;
-  seekBand.frequency.setValueAtTime(640, 0.16);
-  seekBand.frequency.exponentialRampToValueAtTime(1500, 0.28);
-  const seekGain = context.createGain();
-  seekGain.gain.setValueAtTime(0, 0.16);
-  seekGain.gain.linearRampToValueAtTime(0.3, 0.175);
-  seekGain.gain.exponentialRampToValueAtTime(0.0001, 0.3);
-  seek.connect(seekBand).connect(seekGain).connect(out);
-  seek.start(0);
-  burst(context, out, rand, band(520, 3), {at: 0.17, peak: 0.16, decay: 0.02});
-  // The die locks under the hammer.
-  burst(context, out, rand, band(3000, 7), {at: 0.285, peak: 0.24, decay: 0.006});
-  thump(context, out, voice.body * 1.2, {at: 0.288, peak: voice.bodyGain * 0.2, decay: 0.03});
+  // Seek: the plate slides one axis and drops the other.
+  grain(context, out, rand, 0.126, 0.04, 1100, 0.12, 1.8);
+  burst(context, out, rand, band(600, 4), {at: 0.146, peak: 0.18, decay: 0.012});
+  burst(context, out, rand, band(3000, 8), {at: 0.174 + rand() * 0.006, peak: 0.28, decay: 0.007});
+  ping(context, out, 1180 * (0.97 + rand() * 0.06), 0.176, 0.06, 0.05);
+  thump(context, out, voice.body * 1.25, {at: 0.18, peak: voice.bodyGain * 0.24, decay: 0.04});
+
+  // The hammer is cocked again.
+  burst(context, out, rand, band(2000, 6), {at: 0.235 + rand() * 0.008, peak: 0.12, decay: 0.008});
 }
 
 /**
- * One character's worth of mechanism: the motor takes up the load, the linkage is driven, the type
- * bar falls and returns, the escapement lets a tooth past and the carriage steps. It is a long
- * "shhh" under the strike, not a single tick: about half a second, the length of the movement.
+ * One character's worth of mechanism, built from the events of the movement rather than a noise
+ * wash: the escapement lets go, the gear train steps through uneven teeth with short grains of
+ * noise behind each, the linkage returns, the carriage comes to rest. Transients, gaps and
+ * resonances: it should read as a machine moving, not as radio snow.
  */
 function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
-  // The drive taking up the load: a band of noise rising as the links are pulled.
-  const drive = context.createBufferSource();
-  drive.buffer = noise(context, 0.24, rand);
-  const driveBand = context.createBiquadFilter();
-  driveBand.type = 'bandpass';
-  driveBand.Q.value = 1.1;
-  driveBand.frequency.setValueAtTime(620, 0);
-  driveBand.frequency.exponentialRampToValueAtTime(1900, 0.18);
-  const driveGain = context.createGain();
-  driveGain.gain.setValueAtTime(0, 0);
-  driveGain.gain.linearRampToValueAtTime(0.42, 0.05);
-  driveGain.gain.exponentialRampToValueAtTime(0.0001, 0.22);
-  drive.connect(driveBand).connect(driveGain).connect(out);
-  drive.start(0);
+  // The escapement lets go: a hard little click and the body answering.
+  burst(context, out, rand, band(3200, 6), {at: 0, peak: 0.28, decay: 0.006});
+  thump(context, out, voice.body, {at: 0.001, peak: voice.bodyGain * 0.24, decay: 0.03});
 
-  // The bar and linkage sliding back while the carriage steps: the long "shhh".
-  const slide = context.createBufferSource();
-  slide.buffer = noise(context, 0.42, rand);
-  const slideBand = context.createBiquadFilter();
-  slideBand.type = 'bandpass';
-  slideBand.Q.value = 1.2;
-  slideBand.frequency.setValueAtTime(2400, 0.05);
-  slideBand.frequency.exponentialRampToValueAtTime(760, 0.36);
-  const slideGain = context.createGain();
-  slideGain.gain.setValueAtTime(0, 0.04);
-  slideGain.gain.linearRampToValueAtTime(0.48, 0.1);
-  slideGain.gain.exponentialRampToValueAtTime(0.0001, 0.42);
-  slide.connect(slideBand).connect(slideGain).connect(out);
-  slide.start(0);
-
-  // The escapement letting its teeth past, spread across the movement.
-  for (let i = 0; i < 4; i++) {
-    burst(context, out, rand, band(3000 + rand() * 700, 7), {
-      at: 0.04 + i * 0.055,
-      peak: 0.3 - i * 0.045,
-      decay: 0.006
-    });
+  // The gear train steps: uneven teeth, each pushing a short breath of noise (the "shh").
+  const teeth = [0.018, 0.06 + rand() * 0.006, 0.104 + rand() * 0.008, 0.15 + rand() * 0.01];
+  for (let i = 0; i < teeth.length; i++) {
+    const at = teeth[i];
+    burst(context, out, rand, band(2600 + rand() * 900, 7), {at, peak: 0.16 - i * 0.02, decay: 0.005});
+    grain(context, out, rand, at + 0.001, 0.042, 1800 - i * 170, 0.13 - i * 0.01, 1.8);
+    if (i === 1) {
+      ping(context, out, 860 * (0.95 + rand() * 0.1), at + 0.004, 0.05, 0.045);
+    }
   }
-  // The ribbon spool turning under it.
-  burst(context, out, rand, band(4200, 2.6), {at: 0.06, peak: 0.09, decay: 0.3, attack: 0.02});
-  // The machine taking the step.
-  thump(context, out, voice.body * 1.1, {at: 0.01, peak: voice.bodyGain * 0.32, decay: 0.07});
-  thump(context, out, voice.body * 0.85, {at: 0.3, peak: voice.bodyGain * 0.18, decay: 0.06});
+
+  // The linkage returns: a second, lower breath of short grains.
+  burst(context, out, rand, band(2500, 6), {at: 0.192, peak: 0.17, decay: 0.005});
+  grain(context, out, rand, 0.196, 0.04, 1050, 0.12, 1.7);
+  grain(context, out, rand, 0.224 + rand() * 0.006, 0.038, 820, 0.1, 1.7);
+  ping(context, out, 640 * (0.95 + rand() * 0.1), 0.228, 0.04, 0.05);
+
+  // The carriage comes to rest against the next tooth, then the linkage settles.
+  burst(context, out, rand, band(2900, 8), {at: 0.262, peak: 0.26, decay: 0.007});
+  thump(context, out, voice.body * 0.85, {at: 0.264, peak: voice.bodyGain * 0.22, decay: 0.045});
+  burst(context, out, rand, band(1800, 5), {at: 0.302 + rand() * 0.006, peak: 0.1, decay: 0.009});
 }
 
 function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffer> {
