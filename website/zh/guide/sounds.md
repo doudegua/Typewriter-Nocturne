@@ -27,4 +27,4 @@
 
 ## 设置
 
-Studio 里有四种音色（*Standard*、*Portable*、*Electric*、*Whisper*）、*Volume*（音量）、*Margin bell*（边距铃）和声音总开关；也可以用 View 菜单或快捷键开关声音。
+Studio 里有五种音色（*Standard*、*Portable*、*Electric*、*Whisper*，以及 *Matrix*——字模片式电传机：字模板二维寻位、每打完一个字先复位再寻下一个字，由击锤敲下）、*Volume*（音量）、*Margin bell*（边距铃）和声音总开关；也可以用 View 菜单或快捷键开关声音。

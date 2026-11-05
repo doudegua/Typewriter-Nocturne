@@ -86,7 +86,7 @@
 | `lighting.quality` | `auto`、`high`、`medium`、`low` |
 | `lighting.spread` / `aim` | 光束角度 20–160°，朝向 −45° 到 45° |
 | `typography.font` | `courier-prime`、`ibm-plex-mono`、`jetbrains-mono-nf`、`fira-code-nf`、`hack-nf`、`meslo-nf`、`caskaydia-nf`、`custom` 等 |
-| `typewriter.voice` | `standard`、`portable`、`electric`、`whisper` |
+| `typewriter.voice` | `standard`、`portable`、`electric`、`whisper`、`matrix`（字模片式电传机：击锤 + 二维寻位的字模板） |
 | `typewriter.classic` | `true` 时程序输出也一个字一个字打出来，按机器的速度 |
 | `typewriter.classicCps` | `classic` 的每秒字数，1–60（12 就是打字机的速度） |
 | `typewriter.motor` | `true` 时 `classic` 底下跑一台电传打字机马达：低频嗡鸣 + 快速齿轮颤音 |

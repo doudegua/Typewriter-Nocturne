@@ -46,7 +46,8 @@ const VOICES: readonly {value: TypewriterVoice; label: string}[] = [
   {value: 'standard', label: 'Standard'},
   {value: 'portable', label: 'Portable'},
   {value: 'electric', label: 'Electric'},
-  {value: 'whisper', label: 'Whisper'}
+  {value: 'whisper', label: 'Whisper'},
+  {value: 'matrix', label: 'Matrix'}
 ];
 
 const SOURCES: readonly {value: LightingSettings['source']; label: string}[] = [

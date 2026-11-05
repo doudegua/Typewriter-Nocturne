@@ -102,7 +102,7 @@ export type FontId =
   | 'custom';
 /** `quill`: a quill pen at the insertion point, drawn over xterm's own (invisible) cursor. */
 export type CursorStyle = 'quill' | 'block' | 'bar' | 'underline';
-export type TypewriterVoice = 'standard' | 'portable' | 'electric' | 'whisper';
+export type TypewriterVoice = 'standard' | 'portable' | 'electric' | 'whisper' | 'matrix';
 
 /** `pointed`: the beam narrows to the bulb; `soft`: it opens softly round it, as a large bulb's does. */
 export type BeamShape = 'pointed' | 'soft';

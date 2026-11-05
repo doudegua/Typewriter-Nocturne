@@ -331,7 +331,7 @@ const round = (value: number, digits = 3) => Number(value.toFixed(digits));
 
 const QUALITIES: EffectQuality[] = ['auto', 'high', 'medium', 'low'];
 const CURSOR_STYLES: CursorStyle[] = ['quill', 'block', 'bar', 'underline'];
-const VOICES: TypewriterVoice[] = ['standard', 'portable', 'electric', 'whisper'];
+const VOICES: TypewriterVoice[] = ['standard', 'portable', 'electric', 'whisper', 'matrix'];
 const LIGHT_SOURCES = ['theme', 'carriage', 'desk-lamp', 'moonlight'] as const;
 
 const FOLIO_PAPERS: FolioPaperId[] = ['laid', 'cotton', 'vellum', 'parchment', 'night'];

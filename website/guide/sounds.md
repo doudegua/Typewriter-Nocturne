@@ -30,5 +30,7 @@ composed text and what the shell receives are untouched. They get typewriter fee
 
 ## Settings
 
-Four voices (*Standard*, *Portable*, *Electric*, *Whisper*), *Volume*, the *Margin bell* and the sound as a
-whole are in the Studio; the sound can also be switched from the View menu or with a shortcut.
+Five voices (*Standard*, *Portable*, *Electric*, *Whisper*, and *Matrix* — a type-matrix teletype whose die
+plate seeks in two axes, resets to its rest position and is struck by a hammer), *Volume*, the *Margin
+bell* and the sound as a whole are in the Studio; the sound can also be switched from the View menu or
+with a shortcut.

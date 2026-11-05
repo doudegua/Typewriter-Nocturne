@@ -36,13 +36,25 @@ type Voice = {
   ring: number;
   ringGain: number;
   level: number;
+  /** `typebar` (default): a bar swings and strikes. `matrix`: a die plate seeks and a hammer hits. */
+  mechanism?: 'typebar' | 'matrix';
 };
 
 const VOICES: Record<TypewriterVoice, Voice> = {
   standard: {body: 140, bodyGain: 0.9, click: 2600, clickGain: 0.75, ring: 3300, ringGain: 0.16, level: 1},
   portable: {body: 190, bodyGain: 0.5, click: 3600, clickGain: 0.9, ring: 4300, ringGain: 0.22, level: 0.9},
   electric: {body: 105, bodyGain: 0.75, click: 1700, clickGain: 0.4, ring: 2500, ringGain: 0.06, level: 0.85},
-  whisper: {body: 160, bodyGain: 0.3, click: 3000, clickGain: 0.3, ring: 3700, ringGain: 0.04, level: 0.6}
+  whisper: {body: 160, bodyGain: 0.3, click: 3000, clickGain: 0.3, ring: 3700, ringGain: 0.04, level: 0.6},
+  matrix: {
+    body: 115,
+    bodyGain: 0.7,
+    click: 3200,
+    clickGain: 0.55,
+    ring: 4600,
+    ringGain: 0.22,
+    level: 0.95,
+    mechanism: 'matrix'
+  }
 };
 
 const VARIANTS = 4;
@@ -316,6 +328,61 @@ function lineSpace(context: BaseAudioContext, out: AudioNode, voice: Voice, rand
   thump(context, out, voice.body * 0.95, {at: 0.022, peak: voice.bodyGain * 0.45, decay: 0.05});
 }
 
+/** A type-matrix teletype prints with a hammer: no type bar, just a die slammed into the ribbon. */
+function hammer(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number, weight = 1) {
+  burst(context, out, rand, high(3400), {at: 0, peak: 0.45 * weight, decay: 0.006});
+  burst(context, out, rand, band(2500, 5), {at: 0.0008, peak: 0.5 * weight, decay: 0.02});
+  thump(context, out, 120, {at: 0, peak: voice.bodyGain * 0.55 * weight, decay: 0.05});
+  const ring = context.createOscillator();
+  ring.frequency.value = voice.ring;
+  const ringGain = envelope(context, {at: 0, peak: 0.06 * weight, decay: 0.05});
+  ring.connect(ringGain).connect(out);
+  ring.start(0);
+  ring.stop(0.08);
+  burst(context, out, rand, band(1400, 1.2), {at: 0.004, peak: 0.16 * weight, decay: 0.03});
+}
+
+/**
+ * The die plate of a type matrix: after a character it returns to the rest position, then seeks the
+ * next die in two axes and locks under the hammer. Two movements and two detents, not one sweep.
+ */
+function matrixMove(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
+  // Back to the rest position, to the right.
+  const back = context.createBufferSource();
+  back.buffer = noise(context, 0.16, rand);
+  const backBand = context.createBiquadFilter();
+  backBand.type = 'bandpass';
+  backBand.Q.value = 1.3;
+  backBand.frequency.setValueAtTime(1700, 0);
+  backBand.frequency.exponentialRampToValueAtTime(880, 0.11);
+  const backGain = context.createGain();
+  backGain.gain.setValueAtTime(0, 0);
+  backGain.gain.linearRampToValueAtTime(0.3, 0.012);
+  backGain.gain.exponentialRampToValueAtTime(0.0001, 0.13);
+  back.connect(backBand).connect(backGain).connect(out);
+  back.start(0);
+  burst(context, out, rand, band(2700, 6), {at: 0.115, peak: 0.2, decay: 0.006});
+
+  // Seek the next die: one axis slides, the other ticks.
+  const seek = context.createBufferSource();
+  seek.buffer = noise(context, 0.2, rand);
+  const seekBand = context.createBiquadFilter();
+  seekBand.type = 'bandpass';
+  seekBand.Q.value = 1.2;
+  seekBand.frequency.setValueAtTime(640, 0.16);
+  seekBand.frequency.exponentialRampToValueAtTime(1500, 0.28);
+  const seekGain = context.createGain();
+  seekGain.gain.setValueAtTime(0, 0.16);
+  seekGain.gain.linearRampToValueAtTime(0.3, 0.175);
+  seekGain.gain.exponentialRampToValueAtTime(0.0001, 0.3);
+  seek.connect(seekBand).connect(seekGain).connect(out);
+  seek.start(0);
+  burst(context, out, rand, band(520, 3), {at: 0.17, peak: 0.16, decay: 0.02});
+  // The die locks under the hammer.
+  burst(context, out, rand, band(3000, 7), {at: 0.285, peak: 0.24, decay: 0.006});
+  thump(context, out, voice.body * 1.2, {at: 0.288, peak: voice.bodyGain * 0.2, decay: 0.03});
+}
+
 /**
  * One character's worth of mechanism: the motor takes up the load, the linkage is driven, the type
  * bar falls and returns, the escapement lets a tooth past and the carriage steps. It is a long
@@ -374,9 +441,17 @@ function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffe
   out.gain.value = voice.level;
   out.connect(context.destination);
   if (kind === 'key') {
-    strike(context, out, voice, rand, 1);
+    if (voice.mechanism === 'matrix') {
+      hammer(context, out, voice, rand, 1);
+    } else {
+      strike(context, out, voice, rand, 1);
+    }
   } else if (kind === 'space') {
-    strike(context, out, {...voice, clickGain: voice.clickGain * 0.5, ringGain: 0}, rand, 1.25);
+    if (voice.mechanism === 'matrix') {
+      hammer(context, out, voice, rand, 0.6);
+    } else {
+      strike(context, out, {...voice, clickGain: voice.clickGain * 0.5, ringGain: 0}, rand, 1.25);
+    }
   } else if (kind === 'backspace') {
     strike(context, out, {...voice, bodyGain: voice.bodyGain * 0.5}, rand, 0.7);
   } else if (kind === 'return') {
@@ -404,7 +479,11 @@ function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffe
   } else if (kind === 'feed') {
     lineSpace(context, out, voice, rand);
   } else if (kind === 'motion') {
-    mechanism(context, out, voice, rand);
+    if (voice.mechanism === 'matrix') {
+      matrixMove(context, out, voice, rand);
+    } else {
+      mechanism(context, out, voice, rand);
+    }
   } else {
     bell(context, out);
   }

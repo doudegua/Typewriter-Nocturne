@@ -87,7 +87,7 @@ anything unknown or out of range falls back to its default.
 | `lighting.quality` | `auto`, `high`, `medium`, `low` |
 | `lighting.spread` / `aim` | beam angle 20–160°, swivel −45° to 45° |
 | `typography.font` | `courier-prime`, `ibm-plex-mono`, `jetbrains-mono-nf`, `fira-code-nf`, `hack-nf`, `meslo-nf`, `caskaydia-nf`, `custom`, … |
-| `typewriter.voice` | `standard`, `portable`, `electric`, `whisper` |
+| `typewriter.voice` | `standard`, `portable`, `electric`, `whisper`, `matrix` (a type-matrix teletype: hammer and a die plate that seeks in two axes) |
 | `typewriter.classic` | `true` prints program output one character at a time, at the machine's speed |
 | `typewriter.classicCps` | characters per second for `classic`, 1–60 (12 is a typewriter) |
 | `typewriter.motor` | `true` runs a teletype motor under `classic`: a hum and a fast gear flutter |
