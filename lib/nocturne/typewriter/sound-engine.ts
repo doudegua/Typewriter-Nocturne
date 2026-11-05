@@ -295,9 +295,9 @@ function friction(
   level = 1
 ) {
   const bands: [number, number, number][] = [
-    [330, 0.8, 0.2],
-    [900, 1.0, 0.14],
-    [2200, 1.4, 0.06]
+    [400, 0.9, 0.1],
+    [1200, 1.1, 0.13],
+    [3000, 1.6, 0.055]
   ];
   for (const [center, q, peak] of bands) {
     const source = context.createBufferSource();
@@ -322,7 +322,7 @@ function friction(
   }
   // The snow starts hard: a short bright grain, then the bands come up fast so each character's
   // movement is heard as a swell rather than as a fade-in.
-  grain(context, out, rand, at, 0.03, 1500 * (0.9 + rand() * 0.2), 0.12 * level, 1.6);
+  grain(context, out, rand, at, 0.03, 2100 * (0.9 + rand() * 0.2), 0.1 * level, 1.7);
 
   // The many small collisions of the movement.
   const hits = 16 + Math.floor(rand() * 6);
@@ -334,9 +334,9 @@ function friction(
       rand,
       when,
       0.006 + rand() * 0.009,
-      750 + rand() * 2500,
-      (0.02 + rand() * 0.05) * level,
-      2 + rand() * 3
+      1100 + rand() * 2400,
+      (0.018 + rand() * 0.045) * level,
+      1.8 + rand() * 2.4
     );
   }
 }
@@ -475,7 +475,7 @@ function matrixMove(context: BaseAudioContext, out: AudioNode, voice: Voice, ran
 function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
   // The train takes up: a light engagement tick, then the gears step.
   burst(context, out, rand, band(2400, 6), {at: 0, peak: 0.13, decay: 0.005});
-  thump(context, out, voice.body, {at: 0.001, peak: voice.bodyGain * 0.12, decay: 0.025});
+  thump(context, out, voice.body, {at: 0.001, peak: voice.bodyGain * 0.08, decay: 0.02});
   const teeth = [0.016, 0.046 + rand() * 0.005, 0.076 + rand() * 0.006, 0.106 + rand() * 0.007];
   for (let i = 0; i < teeth.length; i++) {
     const at = teeth[i];
@@ -501,7 +501,7 @@ function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand
   grain(context, out, rand, 0.22, 0.03, 760, 0.09, 1.7);
   ping(context, out, 640 * (0.95 + rand() * 0.1), 0.224, 0.035, 0.04);
   burst(context, out, rand, band(2900, 8), {at: 0.25, peak: 0.24, decay: 0.007});
-  thump(context, out, voice.body * 0.85, {at: 0.252, peak: voice.bodyGain * 0.22, decay: 0.04});
+  thump(context, out, voice.body * 0.85, {at: 0.252, peak: voice.bodyGain * 0.17, decay: 0.035});
   burst(context, out, rand, band(1800, 5), {at: 0.274 + rand() * 0.005, peak: 0.09, decay: 0.008});
 }
 
