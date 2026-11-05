@@ -278,6 +278,60 @@ function ping(context: BaseAudioContext, out: AudioNode, frequency: number, at: 
   oscillator.stop(at + decay + 0.05);
 }
 
+/**
+ * Layered friction: several bands of noise with their own irregular swells, and a scatter of tiny
+ * grains where parts touch and let go. Broadband like snow, but with structure: the density and the
+ * colour change over the movement instead of hissing at one level.
+ */
+function friction(
+  context: BaseAudioContext,
+  out: AudioNode,
+  rand: () => number,
+  at: number,
+  duration: number,
+  level = 1
+) {
+  const bands: [number, number, number][] = [
+    [330, 0.8, 0.2],
+    [900, 1.0, 0.14],
+    [2200, 1.4, 0.06]
+  ];
+  for (const [center, q, peak] of bands) {
+    const source = context.createBufferSource();
+    source.buffer = noise(context, duration, rand);
+    const filter = context.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = center * (0.9 + rand() * 0.2);
+    filter.Q.value = q;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0, at);
+    let t = at;
+    const steps = 5 + Math.floor(rand() * 4);
+    for (let i = 0; i < steps; i++) {
+      t += (duration / steps) * (0.5 + rand() * 0.9);
+      gain.gain.linearRampToValueAtTime(peak * level * (0.35 + rand() * 0.65), Math.min(at + duration, t));
+    }
+    gain.gain.linearRampToValueAtTime(0, at + duration);
+    source.connect(filter).connect(gain).connect(out);
+    source.start(at);
+  }
+  // The many small collisions of the movement.
+  const hits = 16 + Math.floor(rand() * 6);
+  for (let i = 0; i < hits; i++) {
+    const when = at + rand() * duration * 0.92;
+    grain(
+      context,
+      out,
+      rand,
+      when,
+      0.006 + rand() * 0.009,
+      750 + rand() * 2500,
+      (0.02 + rand() * 0.05) * level,
+      2 + rand() * 3
+    );
+  }
+}
+
 function bell(context: BaseAudioContext, out: AudioNode) {
   // A small struck bell: fundamental, octave-ish partial and an inharmonic shimmer.
   const partials: [number, number, number][] = [
@@ -382,6 +436,7 @@ function hammer(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: (
  * movements, several detents: the plate is heavy steel, not a hiss.
  */
 function matrixMove(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
+  friction(context, out, rand, 0.01, 0.4, 0.85);
   // Back to rest: two ratchet teeth, the second harder as the plate lands.
   burst(context, out, rand, band(2600, 7), {at: 0.004, peak: 0.2, decay: 0.005});
   grain(context, out, rand, 0.008, 0.034, 1500, 0.12, 1.9);
@@ -411,6 +466,7 @@ function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand
   // The escapement lets go: a hard little click and the body answering.
   burst(context, out, rand, band(3200, 6), {at: 0, peak: 0.28, decay: 0.006});
   thump(context, out, voice.body, {at: 0.001, peak: voice.bodyGain * 0.24, decay: 0.03});
+  friction(context, out, rand, 0.006, 0.45, 1);
 
   // The gear train steps: uneven teeth, each pushing a short breath of noise (the "shh").
   const teeth = [0.018, 0.06 + rand() * 0.006, 0.104 + rand() * 0.008, 0.15 + rand() * 0.01];
