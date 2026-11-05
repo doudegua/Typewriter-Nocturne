@@ -369,8 +369,10 @@ function platenNotch(context: BaseAudioContext, out: AudioNode, voice: Voice, ra
 
 /** One tooth of the escapement released without a type bar (cursor left or right). */
 function escapementTick(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
-  burst(context, out, rand, band(3400 * (0.95 + rand() * 0.1), 5), {at: 0, peak: 0.3, decay: 0.006});
-  burst(context, out, rand, high(voice.click), {at: 0.002, peak: voice.clickGain * 0.12, decay: 0.004});
+  // A small steel tooth slipping: high, dry, and quieter than a strike.
+  burst(context, out, rand, band(4800 * (0.95 + rand() * 0.1), 8), {at: 0, peak: 0.2, decay: 0.005});
+  burst(context, out, rand, high(5600), {at: 0.001, peak: voice.clickGain * 0.05, decay: 0.003});
+  ping(context, out, 3600 * (0.97 + rand() * 0.06), 0.001, 0.035, 0.02);
 }
 
 /** The tabulator: a key thunk, the carriage running over the rack, the tab stop. */
@@ -484,10 +486,10 @@ function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand
     }
   }
 
-  // The middle of the movement: the escapement lets go. This is the hard one.
-  burst(context, out, rand, band(3400, 7), {at: 0.14, peak: 0.32, decay: 0.007});
-  thump(context, out, voice.body * 0.9, {at: 0.142, peak: voice.bodyGain * 0.28, decay: 0.035});
-  ping(context, out, 980 * (0.95 + rand() * 0.08), 0.144, 0.055, 0.045);
+  // The middle of the movement: the escapement lets go — a light, high, metallic tooth.
+  burst(context, out, rand, band(4800, 8), {at: 0.14, peak: 0.2, decay: 0.005});
+  thump(context, out, voice.body * 0.9, {at: 0.142, peak: voice.bodyGain * 0.1, decay: 0.022});
+  ping(context, out, 3400 * (0.97 + rand() * 0.06), 0.144, 0.045, 0.03);
 
   // The carriage steps through two teeth after it.
   grain(context, out, rand, 0.166, 0.03, 1100, 0.12, 1.7);
