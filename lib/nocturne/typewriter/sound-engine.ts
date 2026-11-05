@@ -305,16 +305,22 @@ function friction(
     filter.Q.value = q;
     const gain = context.createGain();
     gain.gain.setValueAtTime(0, at);
-    let t = at;
-    const steps = 5 + Math.floor(rand() * 4);
+    // A decisive onset (10ms), then swells with real troughs between them.
+    gain.gain.linearRampToValueAtTime(peak * level, at + 0.01 + rand() * 0.004);
+    let t = at + 0.014;
+    const steps = 4 + Math.floor(rand() * 3);
     for (let i = 0; i < steps; i++) {
-      t += (duration / steps) * (0.5 + rand() * 0.9);
-      gain.gain.linearRampToValueAtTime(peak * level * (0.35 + rand() * 0.65), Math.min(at + duration, t));
+      t += ((duration - 0.014) / steps) * (0.5 + rand() * 0.9);
+      gain.gain.linearRampToValueAtTime(peak * level * (0.18 + rand() * 0.72), Math.min(at + duration, t));
     }
     gain.gain.linearRampToValueAtTime(0, at + duration);
     source.connect(filter).connect(gain).connect(out);
     source.start(at);
   }
+  // The snow starts hard: a short bright grain, then the bands come up fast so each character's
+  // movement is heard as a swell rather than as a fade-in.
+  grain(context, out, rand, at, 0.03, 1500 * (0.9 + rand() * 0.2), 0.12 * level, 1.6);
+
   // The many small collisions of the movement.
   const hits = 16 + Math.floor(rand() * 6);
   for (let i = 0; i < hits; i++) {
