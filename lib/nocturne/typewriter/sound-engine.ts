@@ -463,32 +463,38 @@ function matrixMove(context: BaseAudioContext, out: AudioNode, voice: Voice, ran
  * resonances: it should read as a machine moving, not as radio snow.
  */
 function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
-  // The escapement lets go: a hard little click and the body answering.
-  burst(context, out, rand, band(3200, 6), {at: 0, peak: 0.28, decay: 0.006});
-  thump(context, out, voice.body, {at: 0.001, peak: voice.bodyGain * 0.24, decay: 0.03});
   friction(context, out, rand, 0.006, 0.45, 1);
 
-  // The gear train steps: uneven teeth, each pushing a short breath of noise (the "shh").
-  const teeth = [0.018, 0.06 + rand() * 0.006, 0.104 + rand() * 0.008, 0.15 + rand() * 0.01];
+  // The train takes up: a light engagement tick, then the gears step.
+  burst(context, out, rand, band(2400, 6), {at: 0, peak: 0.13, decay: 0.005});
+  thump(context, out, voice.body, {at: 0.001, peak: voice.bodyGain * 0.12, decay: 0.025});
+  const teeth = [0.02, 0.06 + rand() * 0.006, 0.1 + rand() * 0.008, 0.15 + rand() * 0.008];
   for (let i = 0; i < teeth.length; i++) {
     const at = teeth[i];
-    burst(context, out, rand, band(2600 + rand() * 900, 7), {at, peak: 0.16 - i * 0.02, decay: 0.005});
-    grain(context, out, rand, at + 0.001, 0.042, 1800 - i * 170, 0.13 - i * 0.01, 1.8);
+    burst(context, out, rand, band(2600 + rand() * 900, 7), {at, peak: 0.15 - i * 0.018, decay: 0.005});
+    grain(context, out, rand, at + 0.001, 0.04, 1800 - i * 160, 0.12 - i * 0.01, 1.8);
     if (i === 1) {
-      ping(context, out, 860 * (0.95 + rand() * 0.1), at + 0.004, 0.05, 0.045);
+      ping(context, out, 860 * (0.95 + rand() * 0.1), at + 0.004, 0.045, 0.045);
     }
   }
 
-  // The linkage returns: a second, lower breath of short grains.
-  burst(context, out, rand, band(2500, 6), {at: 0.192, peak: 0.17, decay: 0.005});
-  grain(context, out, rand, 0.196, 0.04, 1050, 0.12, 1.7);
-  grain(context, out, rand, 0.224 + rand() * 0.006, 0.038, 820, 0.1, 1.7);
-  ping(context, out, 640 * (0.95 + rand() * 0.1), 0.228, 0.04, 0.05);
+  // The middle of the movement: the escapement lets go. This is the hard one.
+  burst(context, out, rand, band(3400, 7), {at: 0.19, peak: 0.34, decay: 0.007});
+  thump(context, out, voice.body * 0.9, {at: 0.192, peak: voice.bodyGain * 0.3, decay: 0.04});
+  ping(context, out, 980 * (0.95 + rand() * 0.08), 0.194, 0.06, 0.05);
 
-  // The carriage comes to rest against the next tooth, then the linkage settles.
-  burst(context, out, rand, band(2900, 8), {at: 0.262, peak: 0.26, decay: 0.007});
-  thump(context, out, voice.body * 0.85, {at: 0.264, peak: voice.bodyGain * 0.22, decay: 0.045});
-  burst(context, out, rand, band(1800, 5), {at: 0.302 + rand() * 0.006, peak: 0.1, decay: 0.009});
+  // The carriage steps through two teeth after it.
+  grain(context, out, rand, 0.222, 0.038, 1100, 0.13, 1.7);
+  burst(context, out, rand, band(2800, 7), {at: 0.224, peak: 0.16, decay: 0.005});
+  grain(context, out, rand, 0.254 + rand() * 0.006, 0.036, 900, 0.11, 1.7);
+  burst(context, out, rand, band(2600, 7), {at: 0.256, peak: 0.13, decay: 0.005});
+
+  // The linkage returns, then the carriage comes to rest against the next tooth.
+  grain(context, out, rand, 0.292, 0.038, 760, 0.1, 1.7);
+  ping(context, out, 640 * (0.95 + rand() * 0.1), 0.296, 0.04, 0.05);
+  burst(context, out, rand, band(2900, 8), {at: 0.334, peak: 0.26, decay: 0.007});
+  thump(context, out, voice.body * 0.85, {at: 0.336, peak: voice.bodyGain * 0.24, decay: 0.045});
+  burst(context, out, rand, band(1800, 5), {at: 0.378 + rand() * 0.006, peak: 0.1, decay: 0.009});
 }
 
 function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffer> {
