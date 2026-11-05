@@ -465,6 +465,21 @@ export function Studio({settings, drawing, onClose, onPress}: StudioProps) {
           onChange={(paperFromBottom) => updateSettings({typewriter: {paperFromBottom}})}
           note="The first line lands at the type head and the sheet feeds upwards, as a typewriter does."
         />
+        <Slider
+          label="Snow gap"
+          value={typewriter.snowDuck}
+          min={0}
+          max={1}
+          step={0.01}
+          format={percent}
+          onChange={(snowDuck) => updateSettings({typewriter: {snowDuck}})}
+        />
+        <Switch
+          label="Bell on return"
+          checked={typewriter.endBell}
+          onChange={(endBell) => updateSettings({typewriter: {endBell}})}
+          note="A bell rings when a line is finished with Return."
+        />
       </Section>
 
       <Section title="Press & Archive">

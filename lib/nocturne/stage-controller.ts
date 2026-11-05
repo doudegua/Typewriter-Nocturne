@@ -314,6 +314,13 @@ export class StageController {
     const classic = typewriter.classic && !!this.cursor && !this.cursor.alternate;
     switch (kind) {
       case 'return':
+        if (typewriter.endBell) {
+          setTimeout(() => {
+            if (!this.disposed) {
+              this.play('bell', repeat, 0.75);
+            }
+          }, 30);
+        }
         if (classic) {
           // The carriage return is part of printing: the feed of the printed newline rings it.
           this.play('select', repeat, 0.4);

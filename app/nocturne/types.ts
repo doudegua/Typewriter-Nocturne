@@ -215,6 +215,10 @@ export type TypewriterSettings = {
   motor: boolean;
   /** Classic mode writes from the bottom of the sheet (at the type head) upwards, as paper feeds. */
   paperFromBottom: boolean;
+  /** How hard a new character's friction bed ducks the one before it, 0 (off) to 1. */
+  snowDuck: number;
+  /** Ring the bell when a line is finished with Return. */
+  endBell: boolean;
 };
 
 export type PaperSettings = {

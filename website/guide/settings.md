@@ -56,7 +56,9 @@ anything unknown or out of range falls back to its default.
     "classic": false,
     "classicCps": 12,
     "motor": true,
-    "paperFromBottom": true
+    "paperFromBottom": true,
+    "snowDuck": 0.7,
+    "endBell": false
   },
   "print": {
     "keepInArchive": true,
@@ -92,6 +94,8 @@ anything unknown or out of range falls back to its default.
 | `typewriter.classicCps` | characters per second for `classic`, 1–60 (12 is a typewriter) |
 | `typewriter.motor` | `true` runs a teletype motor under `classic`: a hum and a fast gear flutter |
 | `typewriter.paperFromBottom` | `true` starts writing at the bottom of the sheet, at the type head, and feeds upwards |
+| `typewriter.snowDuck` | 0–1: how hard a new character's friction ducks the previous one (0 = one continuous bed) |
+| `typewriter.endBell` | `true` rings the bell when a line is finished with Return |
 | `typography.selectionStyle` | `ink` (dissolving ink), `classic` (xterm's box) |
 | `print.style.paper` | `laid`, `cotton`, `vellum`, `parchment`, `night` |
 | `print.style.sealColor` | `crimson`, `oxblood`, `black`, `gold`, `emerald`, `sapphire` |

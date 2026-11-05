@@ -281,7 +281,9 @@ export function defaultSettings(): NocturneSettings {
       classic: false,
       classicCps: 12,
       motor: true,
-      paperFromBottom: true
+      paperFromBottom: true,
+      snowDuck: 0.7,
+      endBell: false
     },
     print: {keepInArchive: true, style: defaultFolioStyle()},
     focus: {background: 'paper', color: '#1c1916', paper: true, lighting: false},
@@ -508,7 +510,9 @@ function sanitizeTypewriter(raw: unknown, base: TypewriterSettings): TypewriterS
     classic: bool(value.classic, base.classic),
     classicCps: num(value.classicCps, base.classicCps, 1, 60, 1),
     motor: bool(value.motor, base.motor),
-    paperFromBottom: bool(value.paperFromBottom, base.paperFromBottom)
+    paperFromBottom: bool(value.paperFromBottom, base.paperFromBottom),
+    snowDuck: round(num(value.snowDuck, base.snowDuck, 0, 1)),
+    endBell: bool(value.endBell, base.endBell)
   };
 }
 

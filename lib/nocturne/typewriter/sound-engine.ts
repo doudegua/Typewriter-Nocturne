@@ -595,7 +595,7 @@ export class TypewriterSounds {
   /** The teletype motor, looped while classic mode prints. */
   private motor: {gain: GainNode; nodes: (AudioBufferSourceNode | OscillatorNode)[]} | null = null;
   /** The last friction beds still ringing, so a new character can duck the one before it. */
-  private frictionBeds: {gain: GainNode; at: number}[] = [];
+  private frictionBeds: {gain: GainNode; at: number; level: number}[] = [];
 
   configure(settings: TypewriterSettings) {
     this.settings = settings;
@@ -753,22 +753,29 @@ export class TypewriterSounds {
     panner.pan.value = Math.max(-1, Math.min(1, pan));
     source.connect(level).connect(panner).connect(this.master);
     if (kind === 'friction') {
-      // A new character's movement pushes the previous bed out of the way: duck its tail quickly
-      // and start the new bed after a short notch. The mechanism itself (the one-shot motion) is
+      // A new character's movement pushes the previous bed out of the way. How hard is the Snow
+      // gap setting: 0 leaves one continuous bed, 1 ducks the previous one almost to silence and
+      // starts the new one after a short notch. The mechanism itself (the one-shot motion) is
       // never ducked, so the escapement and detents of earlier characters are still heard.
+      const duck = Math.max(0, Math.min(1, this.settings?.snowDuck ?? 0));
       const now = context.currentTime;
-      this.frictionBeds = this.frictionBeds.filter((bed) => bed.at + 0.6 > now);
-      for (const bed of this.frictionBeds) {
-        try {
-          bed.gain.gain.cancelScheduledValues(now);
-          bed.gain.gain.setTargetAtTime(0.0001, now, 0.012);
-        } catch {
-          // the node has already been released
+      if (duck > 0.01) {
+        this.frictionBeds = this.frictionBeds.filter((bed) => bed.at + 0.6 > now);
+        for (const bed of this.frictionBeds) {
+          try {
+            bed.gain.gain.cancelScheduledValues(now);
+            bed.gain.gain.setTargetAtTime(Math.max(0.0001, bed.level * (1 - duck)), now, 0.008 + 0.01 * duck);
+          } catch {
+            // the node has already been released
+          }
         }
+        const at = now + 0.024 * duck;
+        this.frictionBeds = [{gain: level, at, level: level.gain.value}];
+        source.start(at);
+        return;
       }
-      const at = now + 0.024;
-      this.frictionBeds = [{gain: level, at}];
-      source.start(at);
+      this.frictionBeds = [];
+      source.start();
       return;
     }
     source.start();

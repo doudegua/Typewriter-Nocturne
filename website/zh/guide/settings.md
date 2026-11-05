@@ -55,7 +55,9 @@
     "classic": false,
     "classicCps": 12,
     "motor": true,
-    "paperFromBottom": true
+    "paperFromBottom": true,
+    "snowDuck": 0.7,
+    "endBell": false
   },
   "print": {
     "keepInArchive": true,
@@ -91,6 +93,8 @@
 | `typewriter.classicCps` | `classic` 的每秒字数，1–60（12 就是打字机的速度） |
 | `typewriter.motor` | `true` 时 `classic` 底下跑一台电传打字机马达：低频嗡鸣 + 快速齿轮颤音 |
 | `typewriter.paperFromBottom` | `true` 时从纸的底部（字头处）开始写，纸往上走 |
+| `typewriter.snowDuck` | 0–1：新字的摩擦层压制上一朵雪花的力度（0 = 连成一片） |
+| `typewriter.endBell` | `true` 时回车结束一行会响一声铃 |
 | `typography.selectionStyle` | `ink`（墨水消散）、`classic`（xterm 方框） |
 | `print.style.paper` | `laid`、`cotton`、`vellum`、`parchment`、`night` |
 | `print.style.sealColor` | `crimson`、`oxblood`、`black`、`gold`、`emerald`、`sapphire` |
