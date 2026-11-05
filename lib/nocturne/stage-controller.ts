@@ -242,6 +242,7 @@ export class StageController {
     setTimeout(() => {
       if (!this.disposed) {
         this.play('motion', false, weight);
+        this.play('friction', false, 0.85);
       }
     }, 10);
     const off = !paperEffectsOn(this.settings) || this.reduceMotion.matches || this.settings.typewriter.impression <= 0;

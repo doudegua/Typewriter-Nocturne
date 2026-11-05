@@ -23,7 +23,8 @@ export type SoundKind =
   | 'print'
   | 'line'
   | 'feed'
-  | 'motion';
+  | 'motion'
+  | 'friction';
 
 type Voice = {
   /** Frequency of the platen thump, Hz. */
@@ -75,7 +76,8 @@ const DURATION: Record<SoundKind, number> = {
   print: 0.9,
   line: 0.16,
   feed: 0.34,
-  motion: 0.5
+  motion: 0.5,
+  friction: 0.3
 };
 
 /** Relative loudness of each sound against a keystroke. */
@@ -95,7 +97,8 @@ const LOUDNESS: Record<SoundKind, number> = {
   print: 0.7,
   line: 0.55,
   feed: 0.6,
-  motion: 1.15
+  motion: 1.15,
+  friction: 1
 };
 
 /** Small deterministic PRNG (mulberry32) so variants are reproducible. */
@@ -442,7 +445,6 @@ function hammer(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: (
  * movements, several detents: the plate is heavy steel, not a hiss.
  */
 function matrixMove(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
-  friction(context, out, rand, 0.01, 0.3, 0.85);
   // Back to rest: two ratchet teeth, the second harder as the plate lands.
   burst(context, out, rand, band(2600, 7), {at: 0.004, peak: 0.2, decay: 0.005});
   grain(context, out, rand, 0.008, 0.034, 1500, 0.12, 1.9);
@@ -469,10 +471,6 @@ function matrixMove(context: BaseAudioContext, out: AudioNode, voice: Voice, ran
  * resonances: it should read as a machine moving, not as radio snow.
  */
 function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
-  // A shorter bed than before: the movement ends and the snow ends with it, leaving a short gap
-  // before the next character's onset.
-  friction(context, out, rand, 0.006, 0.28, 1);
-
   // The train takes up: a light engagement tick, then the gears step.
   burst(context, out, rand, band(2400, 6), {at: 0, peak: 0.13, decay: 0.005});
   thump(context, out, voice.body, {at: 0.001, peak: voice.bodyGain * 0.12, decay: 0.025});
@@ -555,6 +553,8 @@ function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffe
     } else {
       mechanism(context, out, voice, rand);
     }
+  } else if (kind === 'friction') {
+    friction(context, out, rand, 0, 0.28, 1);
   } else {
     bell(context, out);
   }
@@ -594,6 +594,8 @@ export class TypewriterSounds {
   private rand = random(Date.now());
   /** The teletype motor, looped while classic mode prints. */
   private motor: {gain: GainNode; nodes: (AudioBufferSourceNode | OscillatorNode)[]} | null = null;
+  /** The last friction beds still ringing, so a new character can duck the one before it. */
+  private frictionBeds: {gain: GainNode; at: number}[] = [];
 
   configure(settings: TypewriterSettings) {
     this.settings = settings;
@@ -750,6 +752,25 @@ export class TypewriterSounds {
     const panner = context.createStereoPanner();
     panner.pan.value = Math.max(-1, Math.min(1, pan));
     source.connect(level).connect(panner).connect(this.master);
+    if (kind === 'friction') {
+      // A new character's movement pushes the previous bed out of the way: duck its tail quickly
+      // and start the new bed after a short notch. The mechanism itself (the one-shot motion) is
+      // never ducked, so the escapement and detents of earlier characters are still heard.
+      const now = context.currentTime;
+      this.frictionBeds = this.frictionBeds.filter((bed) => bed.at + 0.6 > now);
+      for (const bed of this.frictionBeds) {
+        try {
+          bed.gain.gain.cancelScheduledValues(now);
+          bed.gain.gain.setTargetAtTime(0.0001, now, 0.012);
+        } catch {
+          // the node has already been released
+        }
+      }
+      const at = now + 0.024;
+      this.frictionBeds = [{gain: level, at}];
+      source.start(at);
+      return;
+    }
     source.start();
   }
 
