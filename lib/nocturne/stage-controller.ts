@@ -238,12 +238,12 @@ export class StageController {
     this.throwTypeBar(space ? 0.82 : 1);
     // Just after the bar falls, the carriage steps to the next tooth: the linkage slides, the
     // escapement ticks past, the spool turns. This is the "shh" under the clack.
-    const weight = space ? 0.35 : 0.55;
+    const weight = space ? 0.5 : 0.95;
     setTimeout(() => {
       if (!this.disposed) {
         this.play('motion', false, weight);
       }
-    }, 12);
+    }, 10);
     const off = !paperEffectsOn(this.settings) || this.reduceMotion.matches || this.settings.typewriter.impression <= 0;
     if (!off) {
       this.ink.add(strike, performance.now());

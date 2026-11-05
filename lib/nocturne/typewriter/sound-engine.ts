@@ -63,7 +63,7 @@ const DURATION: Record<SoundKind, number> = {
   print: 0.9,
   line: 0.16,
   feed: 0.34,
-  motion: 0.2
+  motion: 0.5
 };
 
 /** Relative loudness of each sound against a keystroke. */
@@ -83,7 +83,7 @@ const LOUDNESS: Record<SoundKind, number> = {
   print: 0.7,
   line: 0.55,
   feed: 0.6,
-  motion: 0.5
+  motion: 1.15
 };
 
 /** Small deterministic PRNG (mulberry32) so variants are reproducible. */
@@ -316,33 +316,55 @@ function lineSpace(context: BaseAudioContext, out: AudioNode, voice: Voice, rand
   thump(context, out, voice.body * 0.95, {at: 0.022, peak: voice.bodyGain * 0.45, decay: 0.05});
 }
 
-/** The mechanism moving on to the next tooth: carriage, linkage, spool, a breath of gears. */
+/**
+ * One character's worth of mechanism: the motor takes up the load, the linkage is driven, the type
+ * bar falls and returns, the escapement lets a tooth past and the carriage steps. It is a long
+ * "shhh" under the strike, not a single tick: about half a second, the length of the movement.
+ */
 function mechanism(context: BaseAudioContext, out: AudioNode, voice: Voice, rand: () => number) {
-  // The carriage and the type-bar linkage sliding to the next column.
-  const sweep = context.createBufferSource();
-  sweep.buffer = noise(context, 0.16, rand);
-  const bandpass = context.createBiquadFilter();
-  bandpass.type = 'bandpass';
-  bandpass.Q.value = 1.4;
-  bandpass.frequency.setValueAtTime(1400 * (0.9 + rand() * 0.2), 0);
-  bandpass.frequency.exponentialRampToValueAtTime(520, 0.12);
-  sweep
-    .connect(bandpass)
-    .connect(envelope(context, {at: 0, peak: 0.26, decay: 0.13, attack: 0.004}))
-    .connect(out);
-  sweep.start(0);
-  // The teeth of the escapement stepping past.
-  for (let i = 0; i < 3; i++) {
-    burst(context, out, rand, band(3100 + rand() * 500, 6), {
-      at: 0.004 + i * 0.011,
-      peak: 0.15 - i * 0.03,
-      decay: 0.005
+  // The drive taking up the load: a band of noise rising as the links are pulled.
+  const drive = context.createBufferSource();
+  drive.buffer = noise(context, 0.24, rand);
+  const driveBand = context.createBiquadFilter();
+  driveBand.type = 'bandpass';
+  driveBand.Q.value = 1.1;
+  driveBand.frequency.setValueAtTime(620, 0);
+  driveBand.frequency.exponentialRampToValueAtTime(1900, 0.18);
+  const driveGain = context.createGain();
+  driveGain.gain.setValueAtTime(0, 0);
+  driveGain.gain.linearRampToValueAtTime(0.42, 0.05);
+  driveGain.gain.exponentialRampToValueAtTime(0.0001, 0.22);
+  drive.connect(driveBand).connect(driveGain).connect(out);
+  drive.start(0);
+
+  // The bar and linkage sliding back while the carriage steps: the long "shhh".
+  const slide = context.createBufferSource();
+  slide.buffer = noise(context, 0.42, rand);
+  const slideBand = context.createBiquadFilter();
+  slideBand.type = 'bandpass';
+  slideBand.Q.value = 1.2;
+  slideBand.frequency.setValueAtTime(2400, 0.05);
+  slideBand.frequency.exponentialRampToValueAtTime(760, 0.36);
+  const slideGain = context.createGain();
+  slideGain.gain.setValueAtTime(0, 0.04);
+  slideGain.gain.linearRampToValueAtTime(0.48, 0.1);
+  slideGain.gain.exponentialRampToValueAtTime(0.0001, 0.42);
+  slide.connect(slideBand).connect(slideGain).connect(out);
+  slide.start(0);
+
+  // The escapement letting its teeth past, spread across the movement.
+  for (let i = 0; i < 4; i++) {
+    burst(context, out, rand, band(3000 + rand() * 700, 7), {
+      at: 0.04 + i * 0.055,
+      peak: 0.3 - i * 0.045,
+      decay: 0.006
     });
   }
-  // The ribbon spool turning, faint and high.
-  burst(context, out, rand, band(4200, 3), {at: 0.01, peak: 0.045, decay: 0.06});
-  // The body taking the step.
-  thump(context, out, voice.body * 1.1, {at: 0.002, peak: voice.bodyGain * 0.22, decay: 0.03});
+  // The ribbon spool turning under it.
+  burst(context, out, rand, band(4200, 2.6), {at: 0.06, peak: 0.09, decay: 0.3, attack: 0.02});
+  // The machine taking the step.
+  thump(context, out, voice.body * 1.1, {at: 0.01, peak: voice.bodyGain * 0.32, decay: 0.07});
+  thump(context, out, voice.body * 0.85, {at: 0.3, peak: voice.bodyGain * 0.18, decay: 0.06});
 }
 
 function render(kind: SoundKind, voice: Voice, seed: number): Promise<AudioBuffer> {
@@ -434,7 +456,7 @@ export class TypewriterSounds {
   }
 
   private motorLevel() {
-    return Math.max(0.015, (this.settings?.volume ?? 0.4) * 0.07);
+    return Math.max(0.02, (this.settings?.volume ?? 0.4) * 0.12);
   }
 
   private volumeMotor() {
